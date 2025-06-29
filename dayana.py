@@ -27,7 +27,12 @@ client = Client(API_KEY, API_SECRET)
 active_trades = {}
 
 def get_quantity(symbol, price):
-    info = client.futures_exchange_info()
+    try:
+        info = client.futures_exchange_info()
+    except Exception as e:
+        print(f"❌ Ошибка получения информации биржи: {e}")
+        return None, None
+    
     for s in info['symbols']:
         if s['symbol'] == symbol:
             filters = {f['filterType']: f for f in s['filters']}
@@ -46,12 +51,24 @@ def get_quantity(symbol, price):
     return None, None
 
 def get_open_symbols():
+    return set(get_open_positions().keys())
+
+def get_open_positions():
     try:
         positions = client.futures_position_information()
-        return {p['symbol'] for p in positions if float(p['positionAmt']) != 0.0}
+        result = {}
+        for p in positions:
+            amt = float(p.get('positionAmt', 0))
+            if amt != 0.0:
+                result[p['symbol']] = {
+                    'side': 'BUY' if amt > 0 else 'SELL',
+                    'qty': abs(amt),
+                    'entry_price': float(p.get('entryPrice', 0))
+                }
+        return result
     except Exception as e:
         print(f"❌ Ошибка получения открытых позиций: {e}")
-        return set()
+        return {}
 
 def place_order(symbol, side, entry_price, strategy, indicators):
     try:
@@ -142,20 +159,24 @@ def place_order(symbol, side, entry_price, strategy, indicators):
             pass
 
 def check_exit():
-    open_positions = get_open_symbols()
+    open_positions = get_open_positions()
     for symbol in list(active_trades):
         if symbol not in open_positions:
             trade = active_trades[symbol]
-            mark_price = float(client.futures_mark_price(symbol=symbol)['markPrice'])
+            try:
+                mark_price = float(client.futures_mark_price(symbol=symbol)['markPrice'])
+            except Exception as e:
+                print(f"❌ Ошибка получения цены {symbol}: {e}")
+                continue
             trade['exit_price'] = mark_price
             trade['exit_reason'] = "manual_or_tp_sl"
             entry = Decimal(str(trade['entry_price']))
             exit_ = Decimal(str(trade['exit_price']))
             qty = Decimal(str(trade['qty']))
 
-            gross = (exit_ - entry) * qty if trade['side'] == 'BUY' else (entry - exit_) * qty
-            fee = entry * qty * Decimal('0.0004')
-            pnl = float((gross - fee).quantize(Decimal('0.01')))
+            side_mult = Decimal('1') if trade['side'] == 'BUY' else Decimal('-1')
+            pnl_dec = (exit_ - entry) * qty * side_mult
+            pnl = float(pnl_dec.quantize(Decimal('0.01')))
             trade['pnl'] = pnl
 
             log_trade(
@@ -189,8 +210,25 @@ def main():
     print(f"\n🚀 Привет! Я — {BOT_NAME}")
     print("🔍 Анализирую рынок...\n")
 
+    # инициализация активных сделок из Binance
+    active_trades.clear()
+    existing = get_open_positions()
+    for sym, data in existing.items():
+        active_trades[sym] = {
+            "side": data['side'],
+            "entry_price": data['entry_price'],
+            "qty": data['qty'],
+            "tp": None,
+            "sl": None,
+            "strategy": "from_api",
+            "indicators": {},
+            "time": datetime.now(timezone.utc).isoformat()
+        }
+    if active_trades:
+        print(f"🔄 Найдено открытых позиций: {len(active_trades)}")
+
     while True:
-        open_symbols = get_open_symbols()
+        open_symbols = set(get_open_positions().keys())
         for symbol in list(active_trades):
             if symbol not in open_symbols:
                 print(f"⚠️ Позиция {symbol} закрыта вручную — очищаем")
@@ -203,7 +241,7 @@ def main():
         if len(active_trades) >= MAX_OPEN_TRADES:
             print(f"⚠️ Достигнут лимит сделок ({MAX_OPEN_TRADES})")
 
-        open_positions = get_open_symbols()
+        open_positions = get_open_positions()
         for symbol in random.sample(SYMBOLS, len(SYMBOLS)):
             if symbol in active_trades:
                 continue
