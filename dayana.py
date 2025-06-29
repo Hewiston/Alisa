@@ -19,12 +19,14 @@ from logger import log_trade
 from decimal import Decimal, ROUND_DOWN
 import json
 from zoneinfo import ZoneInfo
+from telegram_bot import send_telegram_message, start_bot_thread
 
 last_trade_time = None
 TRADE_COOLDOWN_SECONDS = 1267  # минут
 
 client = Client(API_KEY, API_SECRET)
 active_trades = {}
+PAUSE_MODE = False
 
 def get_quantity(symbol, price):
     try:
@@ -148,6 +150,12 @@ def place_order(symbol, side, entry_price, strategy, indicators):
         }
         log_trade(symbol, side, float(ep), float(qty), float(tp_price), float(sl_price), strategy, indicators, is_exit=False)
         print(f"✅ Opened {side} {symbol} @ {entry_price} (TP: {tp_price}, SL: {sl_price})")
+        msg = (
+            f"✅ {side} {symbol}\n"
+            f"Entry: {entry_price} | TP: {tp_price} | SL: {sl_price}\n"
+            f"Strategy: {strategy}"
+        )
+        send_telegram_message(msg)
 
     except Exception as e:
         import traceback
@@ -203,12 +211,18 @@ def check_exit():
                 pass
 
             print(f"✅ {symbol} закрыта вручную или TP/SL. Прибыль: {pnl:.2f} USDT")
+            msg = (
+                f"🟢 {symbol} закрыта\n"
+                f"PNL: {pnl:+.2f} USDT | Причина: {trade['exit_reason']}"
+            )
+            send_telegram_message(msg)
             del active_trades[symbol]
 
 def main():
     global last_trade_time
     print(f"\n🚀 Привет! Я — {BOT_NAME}")
     print("🔍 Анализирую рынок...\n")
+    start_bot_thread()
 
     # инициализация активных сделок из Binance
     active_trades.clear()
@@ -228,6 +242,10 @@ def main():
         print(f"🔄 Найдено открытых позиций: {len(active_trades)}")
 
     while True:
+        if PAUSE_MODE:
+            check_exit()
+            time.sleep(CHECK_INTERVAL_SECONDS)
+            continue
         open_symbols = set(get_open_positions().keys())
         for symbol in list(active_trades):
             if symbol not in open_symbols:
@@ -284,3 +302,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
