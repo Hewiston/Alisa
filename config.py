@@ -1,14 +1,23 @@
-API_KEY = "131212"
-API_SECRET = "1212"
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+API_KEY = "111"
+API_SECRET = "172"
+
+# Telegram credentials
+TELEGRAM_TOKEN = os.getenv("122")
+TELEGRAM_CHAT_ID = os.getenv("123")
 
 
 BOT_NAME = "Dayana"
 
 # Основные торговые параметры
-TRADE_AMOUNT = 100        # Сумма на сделку (в USDT)
+TRADE_AMOUNT = 300        # Сумма на сделку (в USDT)
 TP_PCT = 0.019           # Take-Profit: +1.5%
 SL_PCT = 0.011            # Stop-Loss: –1.0%
-LEVERAGE = 4             # Кредитное плечо
+LEVERAGE = 5             # Кредитное плечо
 
 # Таймфрейм и частота проверок
 DEFAULT_INTERVAL = '5m'               # Таймфрейм
@@ -21,7 +30,7 @@ SYMBOLS = [
         "DOGEUSDT", "ADAUSDT", "XRPUSDT", "DOTUSDT",
         "AVAXUSDT", "MATICUSDT", "TRXUSDT", "LINKUSDT", "OPUSDT",
         "ARBUSDT", "RNDRUSDT", "SUIUSDT", "ENAUSDT", "ORDIUSDT",
-        "TIAUSDT", "LQTYUSDT", "SEIUSDT", "WIFUSDT", "MEMEUSDT",
+        "TIAUSDT", "SEIUSDT", "WIFUSDT", "MEMEUSDT",
         "BLURUSDT", "NOTUSDT", "PYTHUSDT", "JUPUSDT", "STRKUSDT",
         "ZETAUSDT", "TOKENUSDT", "ARKMUSDT", "CYBERUSDT", "PIXELUSDT",
         "ACEUSDT", "IDUSDT", "PEOPLEUSDT", "AGIXUSDT", "SSVUSDT",
